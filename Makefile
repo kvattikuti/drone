@@ -26,8 +26,8 @@ PKGS := $(addprefix github.com/drone/drone/pkg/,$(PKGS))
 all: embed build
 
 build:
-	go build -o bin/drone -ldflags "-X main.version $(VERSION)dev-$(SHA)" $(SELFPKG)/cmd/drone
-	go build -o bin/droned -ldflags "-X main.version $(VERSION)dev-$(SHA)" $(SELFPKG)/cmd/droned
+	go build -o bin/drone -ldflags "-X main.version $(VERSION)dev-$(SHA)" -gcflags "-N -l" $(SELFPKG)/cmd/drone
+	go build -o bin/droned -ldflags "-X main.version $(VERSION)dev-$(SHA)" -gcflags "-N -l" $(SELFPKG)/cmd/droned
 
 build-dist: godep
 	godep go build -o bin/drone -ldflags "-X main.version $(VERSION)-$(SHA)" $(SELFPKG)/cmd/drone

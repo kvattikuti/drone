@@ -11,7 +11,7 @@ import (
 	"github.com/drone/drone/pkg/plugin/notify"
 	"github.com/drone/go-github/github"
 	"io"
-	"log"
+	//"log"
 	"net/url"
 	"path/filepath"
 	"time"
@@ -34,13 +34,18 @@ func (w *worker) work(queue <-chan *BuildTask) {
 		}
 
 		// execute the task
-		w.execute(task)
+		var err = w.execute(task)
+		if err != nil {
+			println(err.Error())
+		}
 	}
 }
 
 // execute will execute the build task and persist
 // the results to the datastore.
 func (w *worker) execute(task *BuildTask) error {
+
+	println("build task execute called")
 	// we need to be sure that we can recover
 	// from any sort panic that could occur
 	// to avoid brining down the entire application
@@ -57,6 +62,7 @@ func (w *worker) execute(task *BuildTask) error {
 		}
 	}()
 
+	println("build task started")
 	// update commit and build status
 	task.Commit.Status = "Started"
 	task.Build.Status = "Started"
@@ -67,11 +73,13 @@ func (w *worker) execute(task *BuildTask) error {
 	if err := database.SaveCommit(task.Commit); err != nil {
 		return err
 	}
+	println("commit saved")
 
 	// persist the build to the database
 	if err := database.SaveBuild(task.Build); err != nil {
 		return err
 	}
+	println("build saved")
 
 	// get settings
 	settings, _ := database.GetSettings()
@@ -82,8 +90,9 @@ func (w *worker) execute(task *BuildTask) error {
 		Commit: task.Commit,
 		Host:   settings.URL().String(),
 	}
+	println(context)
 
-	// send all "started" notifications
+	/*// send all "started" notifications
 	if task.Script.Notifications != nil {
 		task.Script.Notifications.Send(context)
 	}
@@ -92,12 +101,16 @@ func (w *worker) execute(task *BuildTask) error {
 	if err := updateGitHubStatus(task.Repo, task.Commit); err != nil {
 		log.Printf("error updating github status: %s\n", err.Error())
 	}
+	println("github status updated")*/
 
 	// make sure a channel exists for the repository,
 	// the commit, and the commit output (TODO)
 	reposlug := fmt.Sprintf("%s/%s/%s", task.Repo.Host, task.Repo.Owner, task.Repo.Name)
 	commitslug := fmt.Sprintf("%s/%s/%s/commit/%s/%s", task.Repo.Host, task.Repo.Owner, task.Repo.Name, task.Commit.Branch, task.Commit.Hash)
 	consoleslug := fmt.Sprintf("%s/%s/%s/commit/%s/%s/builds/%s", task.Repo.Host, task.Repo.Owner, task.Repo.Name, task.Commit.Branch, task.Commit.Hash, task.Build.Slug)
+	println(reposlug)
+	println(commitslug)
+	println(consoleslug)
 	channel.Create(reposlug)
 	channel.Create(commitslug)
 	channel.CreateStream(consoleslug)
@@ -117,16 +130,18 @@ func (w *worker) execute(task *BuildTask) error {
 		}
 	}
 
-	defer func() {
+	/*defer func() {
 		// update the status of the commit using the
 		// GitHub status API.
 		if err := updateGitHubStatus(task.Repo, task.Commit); err != nil {
 			log.Printf("error updating github status: %s\n", err.Error())
 		}
-	}()
+	}()*/
 
+	println("running build")
 	// execute the build
 	passed, buildErr := w.runBuild(task, buf)
+	println("build completed");
 
 	task.Build.Finished = time.Now().UTC()
 	task.Commit.Finished = time.Now().UTC()
@@ -146,15 +161,22 @@ func (w *worker) execute(task *BuildTask) error {
 		}
 	}
 
+	println("build status is ", task.Commit.Status)
+	println("build err is ", buildErr)
+	if passed {
+		println(buildErr.Error())
+	}
 	// persist the build to the database
 	if err := database.SaveBuild(task.Build); err != nil {
 		return err
 	}
+	println("build saved")
 
 	// persist the commit to the database
 	if err := database.SaveCommit(task.Commit); err != nil {
 		return err
 	}
+	println("commit saved")
 
 	// notify the channels that the commit and build finished
 	channel.SendJSON(reposlug, task.Commit)
@@ -165,6 +187,7 @@ func (w *worker) execute(task *BuildTask) error {
 	if task.Script.Notifications != nil {
 		task.Script.Notifications.Send(context)
 	}
+	println("notifications sent")
 
 	return nil
 }

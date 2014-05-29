@@ -20,6 +20,7 @@ func ParseBuild(data []byte, params map[string]string) (*Build, error) {
 	build := Build{}
 
 	// parse the build configuration file
+	println("parsing: %s", string(data));
 	err := goyaml.Unmarshal(injectParams(data, params), &build)
 	return &build, err
 }

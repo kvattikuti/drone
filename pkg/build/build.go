@@ -95,20 +95,24 @@ func (b *Builder) Run() error {
 	// teardown will remove the Image and stop and
 	// remove the service containers after the
 	// build is done running.
-	defer b.teardown()
+	//defer b.teardown()
 
+	println("before build setup")
 	// setup will create the Image and supporting
 	// service containers.
 	if err := b.setup(); err != nil {
 		return err
 	}
 
+	println("before make")
 	// make sure build state is not nil
 	b.BuildState = &BuildState{}
 	b.BuildState.ExitCode = 0
 	b.BuildState.Started = time.Now().UTC().Unix()
 
 	c := make(chan error, 1)
+	println("before run")
+	println("build timeout is ", b.Timeout)
 	go func() {
 		c <- b.run()
 	}()
@@ -133,15 +137,18 @@ func (b *Builder) setup() error {
 	if err != nil {
 		return err
 	}
-
+	println("temp dir is ", dir)
 	// clean up after our mess.
 	defer os.RemoveAll(dir)
+	println("after removeall files from temp dir")
+	println("is b.Build nil? ", b.Build)
 
 	// make sure the image isn't empty. this would be bad
 	if len(b.Build.Image) == 0 {
 		log.Err("Fatal Error, No Docker Image specified")
 		return fmt.Errorf("Error: missing Docker image")
 	}
+	println("after checking image is not empty")
 
 	// if we're using an alias for the build name we
 	// should substitute it now
@@ -170,6 +177,8 @@ func (b *Builder) setup() error {
 			return err
 		}
 	}
+	println("after checking if repo is local")
+	println("list of services: ", b.Build.Services)
 
 	// start all services required for the build
 	// that will get linked to the container.
@@ -180,6 +189,7 @@ func (b *Builder) setup() error {
 		owner, name, tag := parseImageName(service)
 		cname := fmt.Sprintf("%s/%s:%s", owner, name, tag)
 
+		println("cname of service is ", cname)
 		// Get the image info
 		img, err := b.dockerClient.Images.Inspect(cname)
 		if err != nil {
@@ -352,10 +362,12 @@ func (b *Builder) run() error {
 	if err := os.MkdirAll(tmpPath, 0777); err != nil {
 		return fmt.Errorf("Failed to create temp directory at %s: %s", tmpPath, err)
 	}
+	println("done creating temporary directory")
 
 	// link cached volumes
 	conf.Volumes = make(map[string]struct{})
 	for _, volume := range b.Build.Cache {
+		println("in the mounting volume loop")
 		name := filepath.Clean(b.Repo.Name)
 		branch := filepath.Clean(b.Repo.Branch)
 		volume := filepath.Clean(volume)
@@ -366,17 +378,17 @@ func (b *Builder) run() error {
 		if strings.HasPrefix(volume, "/") == false {
 			volume = filepath.Join(b.Repo.Dir, volume)
 		}
-
+		println("volume is", volume)
 		// local cache path on the host machine
 		// this path is going to be really long
 		hostpath := filepath.Join(tmpPath, name, branch, volume)
-
+		println("hostpath is ", hostpath)
 		// check if the volume is created
 		if _, err := os.Stat(hostpath); err != nil {
 			// if does not exist then create
 			os.MkdirAll(hostpath, 0777)
 		}
-
+		println("hostpath creation done, if not exists")
 		host.Binds = append(host.Binds, hostpath+":"+volume)
 		conf.Volumes[volume] = struct{}{}
 
@@ -384,21 +396,27 @@ func (b *Builder) run() error {
 		log.Infof("mounting volume %s:%s", hostpath, volume)
 	}
 
+	println("mounting cached volumes done")
+
+	println("creating container")
 	// create the container from the image
 	run, err := b.dockerClient.Containers.Create(&conf)
 	if err != nil {
 		return err
 	}
+	println("creating container done")
 
 	// cache instance of docker.Run
 	b.container = run
 
 	// attach to the container
+	println("attach to container")
 	go func() {
 		b.dockerClient.Containers.Attach(run.ID, &writer{b.Stdout})
 	}()
 
 	// start the container
+	println("start container")
 	if err := b.dockerClient.Containers.Start(run.ID, &host); err != nil {
 		b.BuildState.ExitCode = 1
 		b.BuildState.Finished = time.Now().UTC().Unix()
@@ -406,16 +424,18 @@ func (b *Builder) run() error {
 	}
 
 	// wait for the container to stop
+	println("wait for container to stop")
 	wait, err := b.dockerClient.Containers.Wait(run.ID)
 	if err != nil {
 		b.BuildState.ExitCode = 1
 		b.BuildState.Finished = time.Now().UTC().Unix()
+		println("build in error: ", err.Error());
 		return err
 	}
 
 	// set completion time
 	b.BuildState.Finished = time.Now().UTC().Unix()
-
+	println("build finished cleanly");
 	// get the exit code if possible
 	b.BuildState.ExitCode = wait.StatusCode
 
@@ -510,6 +530,7 @@ func (b *Builder) writeBuildScript(dir string) error {
 	if b.Repo.IsRemote() {
 		for _, cmd := range b.Repo.Commands() {
 			f.WriteCmd(cmd)
+			println(cmd)
 		}
 	}
 

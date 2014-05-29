@@ -27,7 +27,7 @@ func Start(workers int, runner BuildRunner) *Queue {
 	tasks := make(chan *BuildTask)
 
 	queue := &Queue{tasks: tasks}
-
+	println("number of work threads => ", workers)
 	for i := 0; i < workers; i++ {
 		worker := worker{
 			runner: runner,

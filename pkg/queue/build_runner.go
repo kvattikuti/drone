@@ -35,6 +35,7 @@ func (runner *buildRunner) Run(buildScript *script.Build, repo *repo.Repo, key [
 	builder.Stdout = buildOutput
 	builder.Timeout = runner.timeout
 
+	println("before builder.Run()")
 	err := builder.Run()
 
 	return builder.BuildState == nil || builder.BuildState.ExitCode != 0, err

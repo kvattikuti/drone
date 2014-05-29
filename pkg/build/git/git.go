@@ -24,8 +24,11 @@ type Git struct {
 // GitDepth returns Git.Depth
 // when it is not empty.
 func GitDepth(g *Git) int {
+
+	println("depth is ", DefaultGitDepth)
 	if g == nil || g.Depth == nil {
 		return DefaultGitDepth
 	}
+
 	return *g.Depth
 }

@@ -129,13 +129,17 @@ func setupStatic() {
 
 // setup routes for serving dynamic content.
 func setupHandlers() {
-	queueRunner := queue.NewBuildRunner(docker.New(), timeout)
+	println("setting up handlers")
+	var dckr = docker.New()
+	queueRunner := queue.NewBuildRunner(dckr, timeout)
+	println("queueRunner.dockerClient", dckr);
 	queue := queue.Start(workers, queueRunner)
 
 	var (
 		github    = handler.NewGithubHandler(queue)
 		gitlab    = handler.NewGitlabHandler(queue)
 		bitbucket = handler.NewBitbucketHandler(queue)
+		gogs      = handler.NewGogsHandler(queue)
 	)
 
 	m := pat.New()
@@ -219,6 +223,9 @@ func setupHandlers() {
 
 	// handlers for GitLab post-commit hooks
 	m.Post("/hook/gitlab", handler.ErrorHandler(gitlab.Hook))
+
+	// handlers for gogs post-commit hooks
+	m.Post("/hook/gogs", handler.ErrorHandler(gogs.Hook))
 
 	// handlers for first-time installation
 	m.Get("/install", handler.ErrorHandler(handler.Install))
