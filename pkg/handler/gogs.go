@@ -16,6 +16,10 @@ import (
 	"github.com/drone/drone/pkg/queue"
 )
 
+const (
+	droneYmlUrlPattern           = "http://%s/%s/%s/raw/%s/.drone.yml"
+)
+
 type GogsHandler struct {
 	queue *queue.Queue
 }
@@ -31,6 +35,7 @@ func NewGogsHandler(queue *queue.Queue) *GogsHandler {
 // attempts to trigger a build.
 func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 
+	defer r.Body.Close()
 	payloadbytes, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		println(err.Error())
@@ -80,24 +85,37 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	if err := database.SaveBuild(build); err != nil {
 		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
-	fmt.Printf("build saved")
-
-	repo, err := NewRepo("localhost:3000", "kvattikuti", "testwebhook", ScmGit, "http://localhost:3000/kvattikuti/testwebhook.git")
-	fmt.Printf("repo struct created\n")
+	println("build saved")
+    var urlParts = strings.Split(payload.Repo.Url, "/")
+    println("urlParts: ", urlParts)
+	repo, err := NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, payload.Repo.Url)
 	if err != nil {
 		println(err.Error())
 		return RenderText(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
+    fmt.Printf("repo struct created\n")
 
-	
-	// dont have gogs client API, hardcoding yml here
-	var buildYml = `image: go1.2
-script:
-    - echo 'Hello'
-`
-	var repoParams = map[string]string{}
+	// GET .drone.yml file 
+	var droneYmlUrl = fmt.Sprintf(droneYmlUrlPattern, urlParts[2], urlParts[3], urlParts[4], commit.Hash)
+	println("droneYmlUrl is ", droneYmlUrl)
+	ymlGetResponse, err := http.Get(droneYmlUrl)
+	var buildYml = ""
+    if err != nil {
+        println(err.Error())
+        return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+    } else {
+        defer ymlGetResponse.Body.Close()
+        yml, err := ioutil.ReadAll(ymlGetResponse.Body)
+        if err != nil {
+            println(err.Error())
+            return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+        }
+        buildYml := string(yml);
+        println("yml from http get: ", buildYml)
+    }
 
 	// parse the build script
+	var repoParams = map[string]string{}
 	println("parsing yml")
 	buildscript, err := script.ParseBuild([]byte(buildYml), repoParams)
 	if err != nil {
