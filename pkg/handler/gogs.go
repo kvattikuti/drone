@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"encoding/json"
-	"fmt"
-	"errors"
-	"strings"
-    "io/ioutil"
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/drone/drone/pkg/build/script"
@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	droneYmlUrlPattern           = "http://%s/%s/%s/raw/%s/.drone.yml"
+	droneYmlUrlPattern = "http://%s/%s/%s/raw/%s/.drone.yml"
 )
 
 type GogsHandler struct {
@@ -29,7 +29,6 @@ func NewGogsHandler(queue *queue.Queue) *GogsHandler {
 		queue: queue,
 	}
 }
-
 
 // Processes a generic POST-RECEIVE Gogs hook and
 // attempts to trigger a build.
@@ -86,33 +85,33 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	println("build saved")
-    var urlParts = strings.Split(payload.Repo.Url, "/")
-    println("urlParts: ", urlParts)
+	var urlParts = strings.Split(payload.Repo.Url, "/")
+	println("urlParts: ", urlParts)
 	repo, err := NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, payload.Repo.Url)
 	if err != nil {
 		println(err.Error())
 		return RenderText(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
-    fmt.Printf("repo struct created\n")
+	fmt.Printf("repo struct created\n")
 
-	// GET .drone.yml file 
+	// GET .drone.yml file
 	var droneYmlUrl = fmt.Sprintf(droneYmlUrlPattern, urlParts[2], urlParts[3], urlParts[4], commit.Hash)
 	println("droneYmlUrl is ", droneYmlUrl)
 	ymlGetResponse, err := http.Get(droneYmlUrl)
 	var buildYml = ""
-    if err != nil {
-        println(err.Error())
-        return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-    } else {
-        defer ymlGetResponse.Body.Close()
-        yml, err := ioutil.ReadAll(ymlGetResponse.Body)
-        if err != nil {
-            println(err.Error())
-            return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-        }
-        buildYml := string(yml);
-        println("yml from http get: ", buildYml)
-    }
+	if err != nil {
+		println(err.Error())
+		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	} else {
+		defer ymlGetResponse.Body.Close()
+		yml, err := ioutil.ReadAll(ymlGetResponse.Body)
+		if err != nil {
+			println(err.Error())
+			return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+		buildYml := string(yml)
+		println("yml from http get: ", buildYml)
+	}
 
 	// parse the build script
 	var repoParams = map[string]string{}
