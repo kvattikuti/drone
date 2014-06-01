@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"strings"
-	"time"
-
 	"github.com/drone/drone/pkg/build/script"
 	"github.com/drone/drone/pkg/database"
 	. "github.com/drone/drone/pkg/model"
 	"github.com/drone/drone/pkg/queue"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 const (
@@ -94,8 +94,12 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	}
 	fmt.Printf("repo struct created\n")
 
+	service_endpoint := urlParts[2]
+	if os.Getenv("GOGS_URL") != "" {
+		service_endpoint := os.Getenv("GOGS_URL")
+	}
 	// GET .drone.yml file
-	var droneYmlUrl = fmt.Sprintf(droneYmlUrlPattern, urlParts[2], urlParts[3], urlParts[4], commit.Hash)
+	var droneYmlUrl = fmt.Sprintf(droneYmlUrlPattern, service_endpoint, urlParts[3], urlParts[4], commit.Hash)
 	println("droneYmlUrl is ", droneYmlUrl)
 	ymlGetResponse, err := http.Get(droneYmlUrl)
 	var buildYml = ""
