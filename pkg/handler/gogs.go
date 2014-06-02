@@ -113,7 +113,7 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 			println(err.Error())
 			return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		}
-		buildYml := string(yml)
+		buildYml = string(yml)
 		println("yml from http get: ", buildYml)
 	}
 
