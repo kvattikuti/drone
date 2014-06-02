@@ -94,9 +94,9 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	}
 	fmt.Printf("repo struct created\n")
 
-	service_endpoint := urlParts[2]
+	var service_endpoint = urlParts[2]
 	if os.Getenv("GOGS_URL") != "" {
-		service_endpoint := os.Getenv("GOGS_URL")
+		service_endpoint = os.Getenv("GOGS_URL")
 	}
 	// GET .drone.yml file
 	var droneYmlUrl = fmt.Sprintf(droneYmlUrlPattern, service_endpoint, urlParts[3], urlParts[4], commit.Hash)
