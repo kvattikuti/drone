@@ -94,6 +94,21 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	}
 	fmt.Printf("repo struct created\n")
 
+	// Save repo to the database if needed
+	_, err = database.GetRepo(repo.ID)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("error fetching repo: %s", err)
+		}
+		fmt.Errorf("Repo does not exist in database. %s", err)
+		err = database.SaveRepo(repo)
+		if err != nil {
+			return fmt.Errorf("Repo could not be saved to database. %s", err)
+		} else {
+			fmt.Printf("repo saved in database\n")
+		}
+	}
+
 	var service_endpoint = urlParts[2]
 	if os.Getenv("GOGS_URL") != "" {
 		service_endpoint = os.Getenv("GOGS_URL")
