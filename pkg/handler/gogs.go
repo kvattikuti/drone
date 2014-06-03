@@ -51,7 +51,7 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 
 	// Verify that the commit doesn't already exist.
 	// We should never build the same commit twice.
-	_, err = database.GetCommitHash(payload.Commits[len(payload.Commits)-1].Id, payload.Repo.Id)
+	_, err = database.GetCommitHash(payload.Commits[0].Id, payload.Repo.Id)
 	if err != nil && err != sql.ErrNoRows {
 		return RenderText(w, http.StatusText(http.StatusBadGateway), http.StatusBadGateway)
 	}
@@ -69,13 +69,13 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	commit := &Commit{}
 	commit.RepoID = repo.ID
 	commit.Branch = payload.Branch()
-	commit.Hash = payload.Commits[len(payload.Commits)-1].Id
+	commit.Hash = payload.Commits[0].Id
 	commit.Status = "Pending"
 	commit.Created = time.Now().UTC()
 
-	commit.Message = payload.Commits[len(payload.Commits)-1].Message
+	commit.Message = payload.Commits[0].Message
 	commit.Timestamp = time.Now().UTC().String()
-	commit.SetAuthor(payload.Commits[len(payload.Commits)-1].Author.Name)
+	commit.SetAuthor(payload.Commits[0].Author.Name)
 	fmt.Printf("commit struct created\n")
 
 	// save the commit to the database
