@@ -57,8 +57,17 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 	}
 	fmt.Printf("commit hash checked\n")
 
+	// Save repo to the database if needed
+	var urlParts = strings.Split(payload.Repo.Url, "/")
+
+	repo, err := setupRepo(urlParts, payload)
+	if err != nil {
+		println(err.Error())
+		return RenderText(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+	}
+
 	commit := &Commit{}
-	commit.RepoID = payload.Repo.Id
+	commit.RepoID = repo.ID
 	commit.Branch = payload.Branch()
 	commit.Hash = payload.Commits[len(payload.Commits)-1].Id
 	commit.Status = "Pending"
@@ -74,40 +83,6 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 	fmt.Printf("commit struct saved\n")
-
-	// save the build to the database
-	build := &Build{}
-	build.Slug = "1" // TODO
-	build.CommitID = commit.ID
-	build.Created = time.Now().UTC()
-	build.Status = "Pending"
-	if err := database.SaveBuild(build); err != nil {
-		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	}
-	println("build saved")
-	var urlParts = strings.Split(payload.Repo.Url, "/")
-	println("urlParts: ", urlParts)
-	repo, err := NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, payload.Repo.Url)
-	if err != nil {
-		println(err.Error())
-		return RenderText(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-	}
-	fmt.Printf("repo struct created\n")
-
-	// Save repo to the database if needed
-	_, err = database.GetRepo(repo.ID)
-	if err != nil {
-		if err != sql.ErrNoRows {
-			return fmt.Errorf("error fetching repo: %s", err)
-		}
-		fmt.Errorf("Repo does not exist in database. %s", err)
-		err = database.SaveRepo(repo)
-		if err != nil {
-			return fmt.Errorf("Repo could not be saved to database. %s", err)
-		} else {
-			fmt.Printf("repo saved in database\n")
-		}
-	}
 
 	var service_endpoint = urlParts[2]
 	if os.Getenv("GOGS_URL") != "" {
@@ -144,6 +119,17 @@ func (h *GogsHandler) Hook(w http.ResponseWriter, r *http.Request) error {
 		return RenderText(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
 	fmt.Printf("build script parsed\n")
+
+	// save the build to the database
+	build := &Build{}
+	build.Slug = "1" // TODO
+	build.CommitID = commit.ID
+	build.Created = time.Now().UTC()
+	build.Status = "Pending"
+	if err := database.SaveBuild(build); err != nil {
+		return RenderText(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
+	println("build saved")
 
 	// send the build to the queue
 	h.queue.Add(&queue.BuildTask{Repo: repo, Commit: commit, Build: build, Script: buildscript})
@@ -210,4 +196,37 @@ func ParseHook(raw []byte) (*Payload, error) {
 
 func (h *Payload) Branch() string {
 	return strings.Replace(h.Ref, "refs/heads/", "", -1)
+}
+
+func setupRepo(urlParts []string, payload *Payload) (*Repo, error) {
+	println("urlParts: ", urlParts)
+	repo, err := database.GetRepoSlug(fmt.Sprintf("%s/%s/%s", urlParts[2], urlParts[3], urlParts[4]))
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return nil, fmt.Errorf("error fetching repo: %s", err)
+		}
+		fmt.Errorf("Repo does not exist in database. %s", err)
+		repo, err = NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, payload.Repo.Url)
+		if err != nil {
+			println(err.Error())
+			return nil, fmt.Errorf("Repo object could not be created %s", err)
+		}
+		fmt.Printf("repo struct created\n")
+		user, err := database.GetUserEmail(payload.Repo.Owner.Email)
+		if err != nil {
+			return repo, fmt.Errorf("Repo could not find user with email %s, err= %s", payload.Repo.Owner.Email, err)
+		}
+		repo.UserID = user.ID
+		repo.Private = payload.Repo.Private
+
+		err = database.SaveRepo(repo)
+		if err != nil {
+			return repo, fmt.Errorf("Repo could not be saved to database. %s", err)
+		} else {
+			fmt.Printf("repo saved in database\n")
+			return repo, nil
+		}
+	}
+	fmt.Printf("repo exists in database\n")
+	return repo, nil
 }
