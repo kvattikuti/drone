@@ -206,7 +206,15 @@ func setupRepo(urlParts []string, payload *Payload) (*Repo, error) {
 			return nil, fmt.Errorf("error fetching repo: %s", err)
 		}
 		fmt.Errorf("Repo does not exist in database. %s", err)
-		repo, err = NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, payload.Repo.Url)
+
+		// urlParts[2] will stay as-is (git.interior.vesseler as it used in url)
+		// need to modify payload.Repo.Url so that git clone works
+		repo_url := payload.Repo.Url
+		if os.Getenv("GOGS_URL") != "" {
+			repo_url = fmt.Sprintf("http://%s/%s/%s", os.Getenv("GOGS_URL"), urlParts[3], urlParts[4])
+		}
+
+		repo, err = NewRepo(urlParts[2], urlParts[3], urlParts[4], ScmGit, repo_url)
 		if err != nil {
 			println(err.Error())
 			return nil, fmt.Errorf("Repo object could not be created %s", err)
